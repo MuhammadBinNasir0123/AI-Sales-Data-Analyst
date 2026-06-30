@@ -1,0 +1,980 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const { columnMap, unmapped, rows, domainDetection } = $input.first().json;\n\nfunction isCleanNumber(val) {\n  if (val === null || val === undefined || val === \"\") return false;\n  return /^-?\\d+(\\.\\d+)?$/.test(String(val).trim());\n}\nfunction toNum(val) {\n  return isCleanNumber(val) ? parseFloat(val) : NaN;\n}\nfunction get(row, field) {\n  const col = columnMap[field];\n  return col ? row[col] : undefined;\n}\n\n// FIX: real calendar validation, not just format matching\nfunction isValidDate(str) {\n  const m = String(str).trim().match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);\n  if (!m) return false;\n  const [, mo, d, y] = m.map(Number);\n  const date = new Date(y, mo - 1, d);\n  return date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d;\n}\n\nlet totalRevenue = 0, validCount = 0, missingQty = 0, missingPrice = 0, missingTotal = 0;\nlet categoryRevenue = {};\nlet categoryCount = {};\nlet rowsByCategory = {};\nlet statusCount = {};\nlet paymentMethodCount = {};\nlet seenOrderIds = {};\nlet duplicateOrderIds = [];\nlet totalMismatches = [];\nlet invalidDates = [];\n\nrows.forEach((r, i) => {\n  const rowNum = r.row_number || (i + 2);\n  const qty   = toNum(get(r, 'quantity'));\n  const price = toNum(get(r, 'price'));\n  const total = toNum(get(r, 'total'));\n\n  if (!isCleanNumber(get(r, 'quantity'))) missingQty++;\n  if (!isCleanNumber(get(r, 'price')))    missingPrice++;\n  if (!isCleanNumber(get(r, 'total')))    missingTotal++;\n\n  if (!isNaN(total)) {\n    totalRevenue += total;\n    validCount++;\n  }\n\n  const cat = (get(r, 'category') || \"\").trim() || \"Unknown\";\n  categoryRevenue[cat] = (categoryRevenue[cat] || 0) + (isNaN(total) ? 0 : total);\n  categoryCount[cat]   = (categoryCount[cat] || 0) + 1;\n  if (!rowsByCategory[cat]) rowsByCategory[cat] = [];\n  rowsByCategory[cat].push(rowNum);\n\n  const status = get(r, 'status') || \"Unknown\";\n  statusCount[status] = (statusCount[status] || 0) + 1;\n\n  const payment = get(r, 'paymentMethod') || \"Unknown\";\n  paymentMethodCount[payment] = (paymentMethodCount[payment] || 0) + 1;\n\n  const orderId = get(r, 'orderId');\n  if (orderId) {\n    if (seenOrderIds[orderId]) {\n      duplicateOrderIds.push({ Order_ID: orderId, rows: [seenOrderIds[orderId], rowNum] });\n    } else {\n      seenOrderIds[orderId] = rowNum;\n    }\n  }\n\n  if (!isNaN(qty) && !isNaN(price) && !isNaN(total)) {\n    const expected = qty * price;\n    if (Math.abs(expected - total) > 0.5) {\n      totalMismatches.push({\n        row: rowNum,\n        quantity: qty,\n        price: price,\n        expectedTotal: Math.round(expected * 100) / 100,\n        actualTotal: total\n      });\n    }\n  }\n\n  const dateVal = get(r, 'orderDate');\n  if (dateVal && !isValidDate(dateVal)) {\n    invalidDates.push({ row: rowNum, value: dateVal });\n  }\n});\n\nObject.keys(categoryRevenue).forEach(k => {\n  categoryRevenue[k] = Math.round(categoryRevenue[k] * 100) / 100;\n});\n\n// NEW: explicit deterministic flag for negative category revenue, so the LLM\n// doesn't have to spot this itself by scanning the raw JSON dump\nconst negativeRevenueCategories = Object.entries(categoryRevenue)\n  .filter(([, v]) => v < 0)\n  .map(([cat, v]) => ({ category: cat, revenue: v, rows: rowsByCategory[cat] || [] }));\n\nconst rowLevelIssues = rows.map((r, i) => {\n  const rowNum = r.row_number || (i + 2);\n  const issues = [];\n  const priceVal = String(get(r, 'price') ?? '');\n  const qtyVal   = String(get(r, 'quantity') ?? '');\n  const catVal   = get(r, 'category');\n\n  if (priceVal.match(/[a-zA-Z]/)) issues.push(\"non-numeric Price: \" + priceVal);\n  if (qtyVal.match(/[a-zA-Z]/))   issues.push(\"non-numeric Quantity: \" + qtyVal);\n  if (toNum(get(r, 'quantity')) < 0) issues.push(\"negative Quantity: \" + qtyVal);\n  if (toNum(get(r, 'price')) < 0)    issues.push(\"negative Price: \" + priceVal);\n  if (!catVal || catVal.trim() === \"\") {\n    issues.push(\"missing/invalid Category: \" + catVal);\n  }\n  if (issues.length > 0) return { row: rowNum, issues };\n  return null;\n}).filter(Boolean);\n\nconst computedStats = {\n  totalRecords: rows.length,\n  validTotalRecords: validCount,\n  missingOrInvalidQuantityCount: missingQty,\n  missingOrInvalidPriceCount: missingPrice,\n  missingOrInvalidTotalCount: missingTotal,\n  totalRevenue: totalRevenue.toFixed(2),\n  averageOrderValue: (totalRevenue / validCount).toFixed(2),\n  revenueByCategory: categoryRevenue,\n  categoryFrequency: categoryCount,\n  rowsByCategory,\n  negativeRevenueCategories,\n  ordersByStatus: statusCount,\n  paymentMethodDistribution: paymentMethodCount,\n  duplicateOrderIdCount: duplicateOrderIds.length,\n  duplicateOrderIds,\n  totalMismatchCount: totalMismatches.length,\n  totalMismatches,\n  invalidDateCount: invalidDates.length,\n  invalidDates,\n  rowLevelIssues,\n  columnMap,\n  unmappedColumns: unmapped,\n  domainDetection\n};\n\nreturn [{ json: { computedStats } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -208
+      ],
+      "id": "d77c7758-f87f-45f5-9385-0951c3d83a4f",
+      "name": "Computed Stats"
+    },
+    {
+      "parameters": {
+        "jsCode": "const stats = $input.first().json.computedStats;\nconst domain = stats.domainDetection;\n\nconst prompt = `You are a Senior Data Analyst preparing a professional ${domain.detectedDomain} data quality and business analysis report for business stakeholders.\n\nDETECTED DATASET TYPE: ${domain.detectedDomain.toUpperCase()} (confidence: ${domain.confidence})\nANALYSIS FOCUS: ${domain.analysisHint}\n\nPRE-CALCULATED, VERIFIED STATISTICS (use these exact numbers, do not recalculate):\n${JSON.stringify(stats, null, 2)}\n\nVERIFIED FIELDS ABOVE INCLUDE:\n- duplicateOrderIds: exact duplicate order ID pairs with their specific row numbers\n- totalMismatches: rows where Total != Quantity x Price, with exact row numbers\n- invalidDates: rows with non-standard date format, with exact row numbers\n- rowLevelIssues: per-row problems including negative values, non-numeric values, and missing categories, with exact row numbers\n- rowsByCategory: the exact row numbers belonging to each category — use this when citing category-level issues in the Data Quality table. For example, if the electronic category has a data problem, the Row(s) column must list the exact row numbers from rowsByCategory.electronic, not a description like \"all electronic orders\"\n- categoryFrequency: order counts per category\n- paymentMethodDistribution: order counts per payment method\n\nMANDATORY ROW CITATION RULE: Every row in the Data Quality Issues table must have specific row numbers in the Row(s) column. These numbers must come directly from one of these fields: rowLevelIssues, duplicateOrderIds, invalidDates, or rowsByCategory. If you cannot find the row numbers in the ground truth statistics, you must not invent them — instead omit that row from the table entirely.\n\nCITATION RULE:\n- Any number that appears in the PRE-CALCULATED STATISTICS object above must be labeled [verified] when stated in the report.\n- Any number you calculate yourself that is NOT present in that object must be labeled [derived].\n- Never blend a verified and a derived number into the same sentence without distinguishing which is which.\n\nWRITING STYLE RULES:\n- Write in clear, confident, professional prose. Use strong, direct sentences. Avoid filler phrases, hedging language, and generic AI-sounding transitions.\n- Do not repeat the same sub-header phrase (such as \"Why it matters:\") for every insight. Vary how each insight explains its business relevance — sometimes lead with the implication, sometimes with the cause.\n- Never use asterisks, hyphens, or semicolons as bullet markers or emphasis within prose. Write full sentences in plain paragraph form, or use proper Markdown tables where structured data is required.\n- Group related or repeated issues together into a single consolidated row or sentence rather than listing near-identical issues separately, rather than repeating the same issue type across many rows.\n- When listing multiple distinct groups of related items (such as several duplicate ID pairs, or several flagged entries), never separate the groups with semicolons. Write each group as its own clear clause within a single flowing sentence, joined naturally with commas and \"and.\"\n- Format every number above 999 with comma thousand-separators when writing it in prose. Row numbers, year values, and counts under 1,000 do not need commas.\n- Never restate a number, name, or value in parentheses after it has already been mentioned earlier in the same sentence. This includes counts, dollar amounts, and category or status names. Once something is stated, do not echo it again in parentheses immediately afterward, even if rephrased slightly. State every figure exactly once per sentence.\n- Always write negative currency values with the negative sign immediately before the dollar sign, never after it.\n- Never wrap category names, status values, payment method names, column names, or any other field value in quotation marks within prose. Refer to them as plain text, exactly as they would be written in normal business writing.\n- Use the singular form of a field-type term (such as \"order status\" or \"payment method\") when referring to the field or concept itself, and the plural form only when explicitly referring to multiple distinct values of that field collectively.\n- Keep the report tight and information-dense. Every sentence must add new information — do not restate the same number or finding in multiple sections unless directly relevant to that section's purpose.\n- This is a business document, not a casual or conversational one. Avoid phrases like \"It's worth noting that,\" \"Interestingly,\" or \"It is important to mention.\"\n\n====================================================\n1. DATA CLEANING & DATA QUALITY ASSESSMENT\n====================================================\n\nUsing the verified statistics provided, identify all detectable data quality problems. Group identical issue types together — for example, combine all rows with the same missing-category issue into a single table row listing every affected row number, rather than repeating the same issue description across multiple rows.\n\nFor every distinct issue type, report in this exact Markdown table format:\n\n| Row(s) | Column | Issue | Severity | Recommended Fix |\n|--------|--------|-------|----------|------------------|\n\nCRITICAL TABLE RULE: The Row(s) column must always contain specific row numbers taken directly from rowLevelIssues, duplicateOrderIds, rowsByCategory, or invalidDates in the ground truth statistics. Never write a description like \"all electronic category orders\" or \"4 records\" in the Row(s) column — always use the actual row numbers. For category inconsistency issues, use the row numbers from rowsByCategory for that category name.\n\n====================================================\n2. EXPLORATORY DATA ANALYSIS (EDA)\n====================================================\n\nUsing the verified statistics, perform exploratory analysis including:\n\n- Number of records\n- Number of valid records\n- Number of problematic records\n- Missing value counts\n- Category frequencies and revenue\n- Total revenue and average order value\n- Payment method distribution\n- Order status distribution\n- Outliers and patterns\n\nEvery finding MUST include actual numbers and the [verified] or [derived] tag. Present each subsection as tight, well-written prose or a table — never as a bulleted list with asterisks or hyphens.\n\n====================================================\n3. BUSINESS INSIGHTS\n====================================================\n\nProduce 5-8 actionable business insights tailored to a ${domain.detectedDomain} dataset. Every insight MUST:\n\n- contain supporting numbers with [verified] or [derived] tags\n- explain why the finding matters to the business, in varied phrasing — do not reuse the same transition phrase for every insight\n- be written as flowing prose, not bullet fragments\n\n====================================================\n4. EXECUTIVE SUMMARY\n====================================================\n\nWrite a concise, tight summary for a non-technical business stakeholder including:\n\n- Overall data quality assessment\n- Biggest data issues\n- Most important numerical findings\n- Most important business recommendation\n\n====================================================\nOUTPUT FORMAT\n====================================================\n\n# DATA QUALITY REPORT\n\n## Data Quality Issues\n(Table, with related issues grouped into single rows)\n\n## Data Cleaning Recommendations\n(Numbered list, each item a complete sentence)\n\n# EXPLORATORY DATA ANALYSIS\n\n## Dataset Overview\n## Missing Data Summary\n## Descriptive Statistics\n## Category Breakdown\n## Revenue Analysis\n## Payment Analysis\n## Order Status Analysis\n## Outliers\n## Patterns & Relationships\n\n# BUSINESS INSIGHTS\n\n(5-8 insights with [verified] or [derived] tags, written as prose, with varied business-relevance phrasing)\n\n# EXECUTIVE SUMMARY`;\n\nreturn [{\n  json: {\n    body: JSON.stringify({\n      model: \"mistral-small-latest\",\n      messages: [\n        {\n          role: \"user\",\n          content: prompt\n        }\n      ]\n    })\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -208
+      ],
+      "id": "f5bb44d2-023b-4a2a-9e5f-8d897c0bde8f",
+      "name": "Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization ",
+              "value": "Bearer dba7uH3NIvgVbapSVwdiZLBRZWt8xMXd "
+            },
+            {
+              "name": "Content-Type ",
+              "value": "application/json "
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        576,
+        -640
+      ],
+      "id": "245f3777-69c7-4bb4-99b1-0d4bfc8a12c6",
+      "name": "Analyze"
+    },
+    {
+      "parameters": {
+        "jsCode": "const validation = $input.first().json; // from \"Validate Report\" node\nconst firstAnalysis = validation.reportText;\nconst stats = $('Computed Stats').first().json.computedStats;\n\nconst verifyPrompt = `You are a quality-control reviewer. A deterministic code check has ALREADY verified row citations and required findings — do not re-derive these, just incorporate the results below.\n\nDETERMINISTIC CHECK RESULTS (already verified by code, trust these completely):\nInvalid row citations found in the Row(s) column: ${validation.invalidCitations.length ? validation.invalidCitations.join(', ') : 'none'}\nRequired findings missing from the report: ${validation.missingFindings.length ? validation.missingFindings.join(', ') : 'none'}\n\nGROUND TRUTH STATISTICS (for checking derived-number plausibility and tag correctness only):\n${JSON.stringify(stats, null, 2)}\n\nYour job is narrower than a full row-citation check:\n1. For each number tagged [verified], confirm it matches a value in the ground truth. Flag any mismatch as [ground truth: X] vs [report claim: Y].\n2. For each number tagged [derived], confirm it's plausible from the ground truth and isn't a renamed verified stat.\n3. Flag any number with no tag at all.\n4. Flag unsupported qualitative claims and vague language without numbers.\nDo NOT re-check row numbers in the Row(s) column — that has already been verified deterministically above; just incorporate those results into your verdict.\n\nRespond with ONLY this JSON object, nothing else, no markdown fences:\n{\"verdict\": \"APPROVED\" or \"NEEDS_REVISION\", \"issues\": [\"short bullet describing each specific issue, empty array if none\"]}\n\nAnalysis to review:\n${firstAnalysis}`;\n\nreturn [{\n  json: {\n    body: JSON.stringify({\n      model: \"mistral-small-latest\",\n      messages: [{ role: \"user\", content: verifyPrompt }]\n    }),\n    deterministicValid: validation.deterministicValid,\n    invalidCitations: validation.invalidCitations,\n    missingFindings: validation.missingFindings,\n    firstAnalysis\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -528
+      ],
+      "id": "ecceab96-4121-4c60-b2fd-bd17bc9128cf",
+      "name": "Critique"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst sample = rows[0];\nconst keys = Object.keys(sample);\nfunction detect(patterns) {\n  return keys.find(k => patterns.some(p => k.toLowerCase().includes(p))) || null;\n}\nconst columnMap = {\n  id:            detect(['id']),\n  customerName:  detect(['customer', 'client', 'name']),\n  orderId:       detect(['order_id', 'orderid', 'order id']),\n  orderDate:     detect(['date']),\n  product:       detect(['product', 'item', 'sku']),\n  category:      detect(['category', 'cat', 'type', 'department']),\n  quantity:      detect(['quantity', 'qty', 'units', 'count']),\n  price:         detect(['price', 'unit_price', 'rate', 'cost']),\n  paymentMethod: detect(['payment', 'pay_method', 'method']),\n  status:        detect(['status', 'state', 'order_status']),\n  total:         detect(['total', 'amount', 'revenue', 'subtotal']),\n};\nconst critical = ['orderId', 'quantity', 'price', 'total', 'category', 'status'];\nconst unmapped = critical.filter(c => !columnMap[c]);\n\n// FIX: singularize before casing, so \"electronic\"/\"electronics\"/\"ELECTRONICS\" collapse to one bucket\nfunction normalizeCategory(raw) {\n  if (raw === null || raw === undefined) return null;\n  let c = raw.toString().trim().toLowerCase();\n  if (c === '' || c === 'nan') return null;\n  if (c.endsWith('ies')) c = c.slice(0, -3) + 'y';        // e.g. \"accessories\" -> \"accessory\"\n  else if (c.endsWith('s') && c.length > 1) c = c.slice(0, -1); // \"electronics\" -> \"electronic\"\n  return c.charAt(0).toUpperCase() + c.slice(1);\n}\n\nconst categoryCol = columnMap.category;\nconst normalizedRows = rows.map(r => {\n  if (categoryCol) {\n    r[categoryCol] = normalizeCategory(r[categoryCol]);\n  }\n  return r;\n});\n\n// Domain detection (unchanged)\nconst domainScores = { sales: 0, inventory: 0, hr: 0, finance: 0, logistics: 0 };\nif (columnMap.orderId)       domainScores.sales += 3;\nif (columnMap.price)         domainScores.sales += 2;\nif (columnMap.total)         domainScores.sales += 2;\nif (columnMap.customerName)  domainScores.sales += 2;\nif (columnMap.product)       domainScores.sales += 1;\nif (columnMap.paymentMethod) domainScores.sales += 2;\nif (columnMap.status)        domainScores.sales += 1;\nif (columnMap.product)       domainScores.inventory += 2;\nif (columnMap.quantity)      domainScores.inventory += 2;\nif (columnMap.category)      domainScores.inventory += 1;\nif (!columnMap.customerName) domainScores.inventory += 1;\nif (!columnMap.orderId)      domainScores.inventory += 1;\nconst hrKeywords = ['employee', 'salary', 'department', 'hire', 'position', 'manager'];\nhrKeywords.forEach(k => {\n  if (keys.some(v => v.toLowerCase().includes(k))) domainScores.hr += 2;\n});\nconst finKeywords = ['account', 'transaction', 'debit', 'credit', 'balance', 'invoice'];\nfinKeywords.forEach(k => {\n  if (keys.some(v => v.toLowerCase().includes(k))) domainScores.finance += 2;\n});\nconst logKeywords = ['shipment', 'tracking', 'carrier', 'warehouse', 'delivery', 'freight'];\nlogKeywords.forEach(k => {\n  if (keys.some(v => v.toLowerCase().includes(k))) domainScores.logistics += 2;\n});\nconst detectedDomain = Object.entries(domainScores).sort((a, b) => b[1] - a[1])[0][0];\nconst confidence = (() => {\n  const scores = Object.values(domainScores);\n  const max = Math.max(...scores);\n  if (max >= 8) return 'high';\n  if (max >= 4) return 'medium';\n  return 'low';\n})();\nconst domainHints = {\n  sales:     \"Focus on revenue trends, order statuses, payment methods, category performance, and customer order values.\",\n  inventory: \"Focus on stock quantities, category distribution, product availability, and quantity anomalies.\",\n  hr:        \"Focus on salary distribution, department headcount, tenure, and employee status.\",\n  finance:   \"Focus on transaction volumes, account balances, debit/credit patterns, and anomalies.\",\n  logistics: \"Focus on shipment statuses, delivery performance, carrier distribution, and tracking anomalies.\"\n};\nreturn [{\n  json: {\n    columnMap,\n    unmapped,\n    rows: normalizedRows,\n    domainDetection: {\n      detectedDomain,\n      confidence,\n      scores: domainScores,\n      analysisHint: domainHints[detectedDomain]\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -416
+      ],
+      "id": "2aaf3bb4-c1ef-4542-bbc6-55bf0a9a050c",
+      "name": "Column Mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull metadata from the \"Critique\" code node by name — NOT from $input,\n// since $input here is the Critique HTTP response, which strips custom fields.\nconst critiqueMeta = $('Critique').first().json;\nconst firstAnalysis = critiqueMeta.firstAnalysis;\nconst stats = $('Computed Stats').first().json.computedStats;\n\nlet llmVerdict = { verdict: 'NEEDS_REVISION', issues: ['Could not parse critique JSON'] };\ntry {\n  const raw = $json.choices[0].message.content;\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  llmVerdict = JSON.parse(cleaned);\n} catch (e) {\n  // fall through to forced revision below\n}\n\nconst needsRevision = !critiqueMeta.deterministicValid || llmVerdict.verdict === 'NEEDS_REVISION';\n\nif (!needsRevision) {\n  return [{\n    json: {\n      body: JSON.stringify({\n        model: 'mistral-small-latest',\n        messages: [{ role: 'user', content: firstAnalysis }]\n      }),\n      verdict: 'APPROVED',\n      finalReport: firstAnalysis\n    }\n  }];\n}\n\nconst issuesList = [];\ncritiqueMeta.invalidCitations.forEach(function(n) {\n  issuesList.push('Row ' + n + ' was cited in the Row(s) column but does not appear in the ground truth row data. Remove or correct it.');\n});\ncritiqueMeta.missingFindings.forEach(function(f) {\n  issuesList.push('The report must explicitly mention: ' + f + '.');\n});\n(llmVerdict.issues || []).forEach(function(i) {\n  issuesList.push(i);\n});\n\nconst issuesText = issuesList.map(function(i) { return '- ' + i; }).join('\\n');\n\nconst revisionPrompt = 'You are a Senior Data Analyst. You wrote an analysis report that has been reviewed and flagged for revision.\\n' +\n'GROUND TRUTH STATISTICS (the only source of verified numbers):\\n' + JSON.stringify(stats, null, 2) + '\\n' +\n'YOUR ORIGINAL REPORT:\\n' + firstAnalysis + '\\n' +\n'CRITIQUE / ISSUES TO FIX:\\n' + issuesText + '\\n' +\n'YOUR TASK:\\n' +\n'Rewrite the full report fixing every issue listed above.\\n' +\n'RULES:\\n' +\n'- Fix every issue listed above\\n' +\n'- Keep all correct sections exactly as they were\\n' +\n'- Every number from the ground truth must be tagged [verified]\\n' +\n'- Every number you calculate must be tagged [derived]\\n' +\n'- Do not add new information not supported by the ground truth\\n' +\n'- Maintain the same output format as the original report\\n' +\n'- Be specific. Name the exact duplicate Order IDs, mismatch rows, and invalid date values from the ground truth\\n' +\n'- Row(s) column entries must be specific row numbers taken directly from rowLevelIssues, duplicateOrderIds, invalidDates, or rowsByCategory in the ground truth. Never invent row numbers.\\n\\n' +\n'OUTPUT FORMAT: Return the full corrected report only, no preamble.';\n\nreturn [{\n  json: {\n    body: JSON.stringify({\n      model: 'mistral-small-latest',\n      messages: [{ role: 'user', content: revisionPrompt }]\n    }),\n    verdict: 'NEEDS REVISION'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -112
+      ],
+      "id": "a1a915c9-e445-4fee-9b90-45a8b9bb0a91",
+      "name": "Revision"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization ",
+              "value": "Bearer dba7uH3NIvgVbapSVwdiZLBRZWt8xMXd "
+            },
+            {
+              "name": "Content-Type ",
+              "value": "application/json "
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        800,
+        -336
+      ],
+      "id": "e32e2780-4edf-4c67-b540-c33318a1e5b9",
+      "name": "Critique HTTP"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === VALIDATION CHECK (replaces the deleted IF node) ===\n// Validate Revision now feeds directly into this node. If the report failed\n// deterministic validation, throw a real error so n8n's built-in Error Trigger\n// catches it. This is the only way to stop an invalid report from reaching\n// stakeholders without a separate IF/branching node.\nconst validation = $input.first().json;\n\nif (validation.finalValid === false) {\n  throw new Error(\n    'Report failed deterministic validation. ' +\n    'Invalid row citations: ' + JSON.stringify(validation.invalidCitations) + '. ' +\n    'Missing required findings: ' + JSON.stringify(validation.missingFindings)\n  );\n}\n\n// reportContent now comes straight from Validate Revision's output,\n// which already resolved whether to use the original or revised report.\nconst reportContent = validation.reportContent;\n\n// === EVERYTHING BELOW IS YOUR EXISTING LOGIC, UNCHANGED ===\nconst stats = $('Computed Stats').first().json.computedStats;\nconst domainRaw = stats.domainDetection.detectedDomain;\nconst date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });\n\nconst domain = domainRaw.charAt(0).toUpperCase() + domainRaw.slice(1);\nconst verdict = 'REVISED & COMPLETED';\nconst totalRecords = stats.totalRecords;\nconst totalRevenue = stats.totalRevenue;\nconst title = `${domain} Data Quality Report: ${date}`;\n\nconst content = (reportContent || '')\n  .replace(/\\[verified\\]/g, '')\n  .replace(/\\[derived\\]/g, '')\n  .replace(/`([^`]+)`/g, '$1')\n  .replace(/\\s+([.,;:])/g, '$1')\n  .replace(/\\$\\s+/g, '$')\n  .replace(/\\r\\n/g, '\\n')\n  .trim();\n\nfunction mdToHtml(md) {\n  const lines = md.split('\\n');\n  let html = '';\n  let inTable = false;\n  let tableRows = [];\n\n  for (let i = 0; i < lines.length; i++) {\n    const line = lines[i];\n\n    if (/^\\|(.+)\\|$/.test(line)) {\n      const cells = line.split('|').filter(c => c.trim() !== '');\n      if (cells.every(c => c.trim().match(/^[-:]+$/))) continue;\n      if (!inTable) {\n        inTable = true;\n        tableRows = [];\n      }\n      tableRows.push(cells.map(c => c.trim()));\n      continue;\n    }\n\n    if (inTable) {\n      html += `<table style=\"width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;border:1px solid #dde1e7;\">`;\n      tableRows.forEach((row, idx) => {\n        if (idx === 0) {\n          html += `<thead><tr>` + row.map(c => `<th style=\"padding:10px 12px;background:#4a90d9;color:white;text-align:left;font-family:Arial,sans-serif;font-weight:600;\">${c}</th>`).join('') + `</tr></thead><tbody>`;\n        } else {\n          const bg = idx % 2 === 0 ? '#f9fbff' : '#ffffff';\n          html += `<tr>` + row.map(c => `<td style=\"padding:8px 12px;border:1px solid #dde1e7;font-family:Arial,sans-serif;font-size:13px;background:${bg};\">${c}</td>`).join('') + `</tr>`;\n        }\n      });\n      html += `</tbody></table>`;\n      inTable = false;\n      tableRows = [];\n    }\n\n    if (/^# (.+)$/.test(line)) {\n      html += `<h1 style=\"font-family:Georgia,serif;font-size:22px;color:#1a1a2e;border-bottom:2px solid #4a90d9;padding-bottom:8px;margin-top:36px;\">${line.replace(/^# /, '')}</h1>`;\n    } else if (/^## (.+)$/.test(line)) {\n      html += `<h2 style=\"font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;\">${line.replace(/^## /, '')}</h2>`;\n    } else if (/^### (.+)$/.test(line)) {\n      html += `<h3 style=\"font-family:Arial,sans-serif;font-size:15px;color:#34495e;margin-top:16px;\">${line.replace(/^### /, '')}</h3>`;\n    } else if (/^\\d+\\. (.+)$/.test(line)) {\n      const formatted = line.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');\n      html += `<p style=\"font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;\">${formatted}</p>`;\n    } else if (/^- (.+)$/.test(line)) {\n      html += `<li style=\"font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;margin:4px 0 4px 20px;\">${line.replace(/^- /, '')}</li>`;\n    } else if (line.trim() !== '') {\n      const formatted = line.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');\n      html += `<p style=\"font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;\">${formatted}</p>`;\n    }\n  }\n\n  return html;\n}\n\nconst verdictColor = '#2980b9';\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"UTF-8\"></head>\n<body style=\"max-width:860px;margin:0 auto;padding:40px;background:#ffffff;font-family:Arial,sans-serif;\">\n\n  <div style=\"background:linear-gradient(135deg,#1a1a2e,#2c3e50);padding:32px 40px;border-radius:8px;margin-bottom:32px;\">\n    <p style=\"color:#a8d8ff;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px;\">Business Intelligence — Confidential</p>\n    <h1 style=\"color:#ffffff;font-family:Georgia,serif;font-size:28px;margin:0 0 8px;\">Data Quality & Business Analysis Report</h1>\n    <p style=\"color:#cce5ff;font-size:14px;margin:0;\">${domain} Dataset &nbsp;|&nbsp; ${date}</p>\n  </div>\n\n  <div style=\"display:flex;gap:16px;margin-bottom:32px;\">\n    <div style=\"flex:1;background:#f0f7ff;border-left:4px solid #4a90d9;padding:16px 20px;border-radius:4px;\">\n      <p style=\"font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;\">Total Records</p>\n      <p style=\"font-family:Georgia,serif;font-size:22px;color:#1a1a2e;font-weight:bold;margin:0;\">${totalRecords}</p>\n    </div>\n    <div style=\"flex:1;background:#f0f7ff;border-left:4px solid #4a90d9;padding:16px 20px;border-radius:4px;\">\n      <p style=\"font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;\">Total Revenue</p>\n      <p style=\"font-family:Georgia,serif;font-size:22px;color:#1a1a2e;font-weight:bold;margin:0;\">$${Number(totalRevenue).toLocaleString()}</p>\n    </div>\n    <div style=\"flex:1;background:#f0f7ff;border-left:4px solid #4a90d9;padding:16px 20px;border-radius:4px;\">\n      <p style=\"font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;\">Dataset Type</p>\n      <p style=\"font-family:Georgia,serif;font-size:22px;color:#1a1a2e;font-weight:bold;margin:0;\">${domain}</p>\n    </div>\n    <div style=\"flex:1;background:#f0f7ff;border-left:4px solid ${verdictColor};padding:16px 20px;border-radius:4px;\">\n      <p style=\"font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;\">QA Status</p>\n      <p style=\"font-family:Georgia,serif;font-size:16px;color:${verdictColor};font-weight:bold;margin:0;\">${verdict}</p>\n    </div>\n  </div>\n\n  <div style=\"line-height:1.8;\">\n    ${mdToHtml(content)}\n  </div>\n\n  <div style=\"margin-top:48px;padding-top:20px;border-top:1px solid #dde1e7;text-align:center;\">\n    <p style=\"font-size:12px;color:#95a5a6;\">\n      Business Intelligence Division &nbsp;|&nbsp; ${date} &nbsp;|&nbsp; Confidential\n    </p>\n  </div>\n\n</body>\n</html>`;\n\nconst emailBody = `Hi,\n\nPlease find the latest data quality and business analysis report ready for your review.\n\n────────────────────────────────\nDataset Type  : ${domain}\nTotal Records : ${totalRecords}\nTotal Revenue : $${Number(totalRevenue).toLocaleString()}\nQA Status     : ${verdict}\nReport Date   : ${date}\n────────────────────────────────\n\nPlease do not hesitate to reach out if you have any questions or require further analysis.\n\nBest regards,\nBusiness Intelligence Team`;\n\nreturn [{\n  json: {\n    htmlContent: html,\n    emailBody,\n    title\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        -288
+      ],
+      "id": "02d0c2f6-bd2d-4d9e-83e4-9799f6110eb4",
+      "name": "Convert to HTML"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1c85n59Wz3LRjBbWrUmekHM6lKvwf_E2N",
+          "mode": "list",
+          "cachedResultName": "Data Analyst Inbox",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1c85n59Wz3LRjBbWrUmekHM6lKvwf_E2N"
+        },
+        "event": "fileCreated",
+        "options": {
+          "fileType": "all"
+        }
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -640
+      ],
+      "id": "8901bb32-7bbe-4c2a-acc0-b2af7abe2120",
+      "name": "Google Drive Trigger",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "oyiTmoH7gPfa8kaI",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        368,
+        -640
+      ],
+      "id": "67dcb0e1-dbd5-43ff-8032-54e85af34a16",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        640,
+        208
+      ],
+      "id": "6f3133da-15b6-475d-a577-ac08a8d37d64",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "muhammadbinnasir0123@gmail.com",
+        "subject": "={{ $('Convert to HTML').item.json.title }}",
+        "message": "={{ $('Convert to HTML').item.json.htmlContent }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1888,
+        -592
+      ],
+      "id": "2460c1cf-e293-4705-b1e7-e89396f18c40",
+      "name": "Message to Stakeholders",
+      "webhookId": "6fabcf49-9d2e-40c5-8118-c6e6aa56c57a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Gd3Z3LV97lG3NjCG",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1LOAkDDjTLX35wZkbuaiJ3RewNEl7FGLNeXBlk4j1zQk",
+          "mode": "list",
+          "cachedResultName": "Pipeline Run Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LOAkDDjTLX35wZkbuaiJ3RewNEl7FGLNeXBlk4j1zQk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LOAkDDjTLX35wZkbuaiJ3RewNEl7FGLNeXBlk4j1zQk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}",
+            "Time": "={{ new Date().toLocaleTimeString() }}",
+            "Dataset": "={{ $('Google Drive Trigger').first().json.name }}",
+            "Total Records": "={{ $('Computed Stats').first().json.computedStats.totalRecords }}",
+            "Total Revenue": "={{ $('Computed Stats').first().json.computedStats.totalRevenue }}",
+            "Verdict": "={{ $('Revision').first().json.verdict }}",
+            "Status": "Completed"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Time",
+              "displayName": "Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Dataset",
+              "displayName": "Dataset",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total Records",
+              "displayName": "Total Records",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total Revenue",
+              "displayName": "Total Revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Verdict",
+              "displayName": "Verdict",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1888,
+        -320
+      ],
+      "id": "60a0d1da-ce0f-4363-ba4d-c8d0ade20d13",
+      "name": "Record Pipeline Run",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QIJRdMLIToD4A9I1",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const reportText = $input.first().json.choices[0].message.content;\nconst stats = $('Computed Stats').first().json.computedStats;\n\n// Build the authoritative set of row numbers the report is allowed to cite\nconst validRows = new Set();\nstats.rowLevelIssues.forEach(r => validRows.add(r.row));\nstats.duplicateOrderIds.forEach(d => d.rows.forEach(r => validRows.add(r)));\nstats.totalMismatches.forEach(m => validRows.add(m.row));\nstats.invalidDates.forEach(d => validRows.add(d.row));\nObject.values(stats.rowsByCategory).forEach(rows => rows.forEach(r => validRows.add(r)));\n\n// Extract every row number cited in the Data Quality Issues table's Row(s) column\nconst tableLines = reportText.split('\\n').filter(l => /^\\|.*\\|$/.test(l));\nconst citedRows = new Set();\ntableLines.slice(1).forEach(line => { // skip header row\n  const firstCell = line.split('|')[1] || '';\n  if (/^[\\s,\\d]+$/.test(firstCell.trim())) {\n    (firstCell.match(/\\d+/g) || []).forEach(n => citedRows.add(Number(n)));\n  }\n});\n\nconst invalidCitations = [...citedRows].filter(n => !validRows.has(n));\n\n// Check that every \"must mention\" finding from ground truth actually appears\nconst missingFindings = [];\nstats.duplicateOrderIds.forEach(d => {\n  if (!reportText.includes(d.Order_ID)) missingFindings.push(`duplicate order ID ${d.Order_ID}`);\n});\nstats.totalMismatches.forEach(m => {\n  if (!reportText.includes(String(m.row))) missingFindings.push(`mismatch at row ${m.row}`);\n});\nstats.invalidDates.forEach(d => {\n  if (!reportText.includes(String(d.row))) missingFindings.push(`invalid date at row ${d.row}`);\n});\n\nconst valid = invalidCitations.length === 0 && missingFindings.length === 0;\n\nreturn [{\n  json: {\n    deterministicValid: valid,\n    invalidCitations,\n    missingFindings,\n    reportText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -736
+      ],
+      "id": "e1da99f6-429c-4254-9f39-9f5ce94496ad",
+      "name": "Validate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawInput = $input.first().json;\nconst reportText = rawInput?.choices?.[0]?.message?.content || '';\n\nif (!reportText) {\n  throw new Error(\n    'Validate Revision: no report text found in input. Input keys were: ' +\n    Object.keys(rawInput || {}).join(', ')\n  );\n}\n\nconst stats = $('Computed Stats').first().json.computedStats;\n\nconst validRows = new Set();\nstats.rowLevelIssues.forEach(r => validRows.add(r.row));\nstats.duplicateOrderIds.forEach(d => d.rows.forEach(r => validRows.add(r)));\nstats.totalMismatches.forEach(m => validRows.add(m.row));\nstats.invalidDates.forEach(d => validRows.add(d.row));\nObject.values(stats.rowsByCategory).forEach(rows => rows.forEach(r => validRows.add(r)));\n\nconst tableLines = reportText.split('\\n').filter(l => /^\\|.*\\|$/.test(l));\nconst citedRows = new Set();\ntableLines.slice(1).forEach(line => {\n  const firstCell = line.split('|')[1] || '';\n  if (/^[\\s,\\d]+$/.test(firstCell.trim())) {\n    (firstCell.match(/\\d+/g) || []).forEach(n => citedRows.add(Number(n)));\n  }\n});\nconst invalidCitations = [...citedRows].filter(n => !validRows.has(n));\n\nconst missingFindings = [];\nstats.duplicateOrderIds.forEach(d => {\n  if (!reportText.includes(d.Order_ID)) missingFindings.push(`duplicate order ID ${d.Order_ID}`);\n});\nstats.totalMismatches.forEach(m => {\n  if (!reportText.includes(String(m.row))) missingFindings.push(`mismatch at row ${m.row}`);\n});\nstats.invalidDates.forEach(d => {\n  if (!reportText.includes(String(d.row))) missingFindings.push(`invalid date at row ${d.row}`);\n});\n\nconst finalValid = invalidCitations.length === 0 && missingFindings.length === 0;\n\nreturn [{\n  json: {\n    finalValid,\n    invalidCitations,\n    missingFindings,\n    reportContent: reportText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        -112
+      ],
+      "id": "a3c61536-f72c-47c4-9bcb-b2b8d9900a8e",
+      "name": "Validate Revision"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    ...input,\n    attempt: 1,\n    maxAttempts: 3\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -416
+      ],
+      "id": "56e790dc-a2a5-4381-be83-341243998578",
+      "name": "Init Attempt"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{ json: { ...input, attempt: input.attempt + 1 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        -16
+      ],
+      "id": "71dc86e6-3503-47eb-afac-bbe0aa571799",
+      "name": "Increment Attempt"
+    },
+    {
+      "parameters": {
+        "sendTo": "muhammadbinnasir0123@gmail.com",
+        "subject": "=Report Failed QA After {{$json.maxAttempts}} Attempts : Manual Review Needed",
+        "message": "=This report failed automated validation after {{$json.maxAttempts}} attempts.\nRemaining issues: Invalid citations: {{$json.invalidCitations}}\nMissing findings: {{$json.missingFindings}} \nManual review required : report was not sent automatically.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1888,
+        48
+      ],
+      "id": "a34f4b9d-b779-4078-a99a-d63f3314cc04",
+      "name": "Escalate to Human",
+      "webhookId": "151578d8-90df-45b4-b070-4a676734015e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Gd3Z3LV97lG3NjCG",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization ",
+              "value": "Bearer dba7uH3NIvgVbapSVwdiZLBRZWt8xMXd "
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json "
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.body}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        976,
+        -112
+      ],
+      "id": "6c49ed2f-0903-4b55-8471-1c4844be9286",
+      "name": "Revision HTTP"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "60995d1e-a90a-42a8-b4e1-7210f6436c5b",
+              "leftValue": "={{$json.finalValid}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "2f617a58-cf44-4ab4-a80e-a55d16894fe5",
+              "leftValue": "={{$json.invalidCitations.length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "d98c667b-c09a-4d3c-82f2-0791ad303418",
+              "leftValue": "={{$json.missingFindings.length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1312,
+        -112
+      ],
+      "id": "dbac62cd-f965-4992-b81c-3fd4d0d90fb0",
+      "name": "Check QA Valid"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4f4d28e8-6f1b-4a26-aa80-31b63e51fbaa",
+              "leftValue": "={{$json.attempt}}",
+              "rightValue": "={{$json.maxAttempts}}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1664,
+        -16
+      ],
+      "id": "fe7cb89c-370f-4492-ad06-ba0cfd3109fe",
+      "name": "Check Attempts Left"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "muhammadbinnasir0123@gmail.com",
+        "subject": "=Report Ready for Approval : {{$json.title}}",
+        "message": "=A new sales data report is ready to send.\n  \n  Verdict: {{$json.verdict}}\n  \n  Preview: {{$json.htmlContent}}\n  \n  Please approve or reject below.",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "resumeAmount": 24
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1488,
+        -448
+      ],
+      "id": "f4256477-8feb-4a88-b709-3c42e4825343",
+      "name": "Request Approval",
+      "webhookId": "e15071a6-46e3-4901-9acf-faace2ed5aa7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Gd3Z3LV97lG3NjCG",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "38c1f716-1327-407f-88bb-ba920d2cefd3",
+              "leftValue": "={{$json.data.approved}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1664,
+        -448
+      ],
+      "id": "e813a5c3-86e7-47cd-8c43-0eec22125e80",
+      "name": "Check Approval"
+    },
+    {
+      "parameters": {
+        "sendTo": "muhammadbinnasir0123@gmail.com",
+        "subject": "=⚠️  Pipeline Error : {{ $json.execution.error.message }}",
+        "message": "=Workflow failed: {{$json.error.message}}\nNode: {{$json.execution.error.node.name}}\nTime: {{$now}}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1184,
+        208
+      ],
+      "id": "d1f7f8e6-dd1c-42c7-871c-f96d86f8bfac",
+      "name": "Error Alert",
+      "webhookId": "882134a9-6683-449e-8e89-85e86cd9b86d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Gd3Z3LV97lG3NjCG",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileId = $input.first().json.id;\nreturn [{ json: { id: fileId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        -640
+      ],
+      "id": "0fdf8508-f230-491c-9fd4-74006754997e",
+      "name": "Extract File ID"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        112,
+        -640
+      ],
+      "id": "9fc3a94f-89b5-415b-8db2-d25386f6e37f",
+      "name": "Download File from Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "oyiTmoH7gPfa8kaI",
+          "name": "Google Drive account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Computed Stats": {
+      "main": [
+        [
+          {
+            "node": "Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt": {
+      "main": [
+        [
+          {
+            "node": "Init Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze": {
+      "main": [
+        [
+          {
+            "node": "Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critique": {
+      "main": [
+        [
+          {
+            "node": "Critique HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Column Mapper": {
+      "main": [
+        [
+          {
+            "node": "Computed Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revision": {
+      "main": [
+        [
+          {
+            "node": "Revision HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critique HTTP": {
+      "main": [
+        [
+          {
+            "node": "Revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to HTML": {
+      "main": [
+        [
+          {
+            "node": "Request Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract File ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Column Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message to Stakeholders": {
+      "main": [
+        []
+      ]
+    },
+    "Validate": {
+      "main": [
+        [
+          {
+            "node": "Critique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Revision": {
+      "main": [
+        [
+          {
+            "node": "Check QA Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Pipeline Run": {
+      "main": [
+        []
+      ]
+    },
+    "Init Attempt": {
+      "main": [
+        [
+          {
+            "node": "Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Attempt": {
+      "main": [
+        [
+          {
+            "node": "Check Attempts Left",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate to Human": {
+      "main": [
+        [
+          {
+            "node": "Record Pipeline Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revision HTTP": {
+      "main": [
+        [
+          {
+            "node": "Validate Revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check QA Valid": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Increment Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Attempts Left": {
+      "main": [
+        [
+          {
+            "node": "Critique HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate to Human",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Approval": {
+      "main": [
+        [
+          {
+            "node": "Check Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Approval": {
+      "main": [
+        [
+          {
+            "node": "Message to Stakeholders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Pipeline Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File ID": {
+      "main": [
+        [
+          {
+            "node": "Download File from Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File from Drive": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "aabffaf3-b894-4c48-8dd8-f52b31d79d6e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "20f3d4059f047ab45b32a36d090ec5daca6a9181f9c5382e47bbfaee40204242"
+  },
+  "nodeGroups": [],
+  "id": "HNG324wkI6Nbqf1x",
+  "tags": []
+}
