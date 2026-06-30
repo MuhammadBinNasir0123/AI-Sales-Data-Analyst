@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Sales Data Quality Report</title></head>
+<body style="max-width:860px;margin:0 auto;padding:40px;background:#ffffff;font-family:Arial,sans-serif;">
+
+  <div style="background:linear-gradient(135deg,#1a1a2e,#2c3e50);padding:32px 40px;border-radius:8px;margin-bottom:32px;">
+    <p style="color:#a8d8ff;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px;">Business Intelligence — Sample Output</p>
+    <h1 style="color:#ffffff;font-family:Georgia,serif;font-size:28px;margin:0 0 8px;">Data Quality & Business Analysis Report</h1>
+    <p style="color:#cce5ff;font-size:14px;margin:0;">Sales Dataset &nbsp;|&nbsp; retail_sales_dataset.csv</p>
+  </div>
+
+  <div style="display:flex;gap:16px;margin-bottom:32px;">
+    <div style="flex:1;background:#f0f7ff;border-left:4px solid #4a90d9;padding:16px 20px;border-radius:4px;">
+      <p style="font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Total Records</p>
+      <p style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;font-weight:bold;margin:0;">103</p>
+    </div>
+    <div style="flex:1;background:#f0f7ff;border-left:4px solid #4a90d9;padding:16px 20px;border-radius:4px;">
+      <p style="font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Total Revenue</p>
+      <p style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;font-weight:bold;margin:0;">$109,732.47</p>
+    </div>
+    <div style="flex:1;background:#f0f7ff;border-left:4px solid #4a90d9;padding:16px 20px;border-radius:4px;">
+      <p style="font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Dataset Type</p>
+      <p style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;font-weight:bold;margin:0;">Sales</p>
+    </div>
+    <div style="flex:1;background:#f0f7ff;border-left:4px solid #2980b9;padding:16px 20px;border-radius:4px;">
+      <p style="font-size:11px;color:#7f8c8d;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">QA Status</p>
+      <p style="font-family:Georgia,serif;font-size:16px;color:#2980b9;font-weight:bold;margin:0;">REVISED & COMPLETED</p>
+    </div>
+  </div>
+
+  <div style="line-height:1.8;">
+
+    <h1 style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;border-bottom:2px solid #4a90d9;padding-bottom:8px;margin-top:36px;">DATA QUALITY REPORT</h1>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Data Quality Issues</h2>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;border:1px solid #dde1e7;">
+      <thead><tr>
+        <th style="padding:10px 12px;background:#4a90d9;color:white;text-align:left;font-family:Arial,sans-serif;font-weight:600;">Row(s)</th>
+        <th style="padding:10px 12px;background:#4a90d9;color:white;text-align:left;font-family:Arial,sans-serif;font-weight:600;">Column</th>
+        <th style="padding:10px 12px;background:#4a90d9;color:white;text-align:left;font-family:Arial,sans-serif;font-weight:600;">Issue</th>
+        <th style="padding:10px 12px;background:#4a90d9;color:white;text-align:left;font-family:Arial,sans-serif;font-weight:600;">Severity</th>
+        <th style="padding:10px 12px;background:#4a90d9;color:white;text-align:left;font-family:Arial,sans-serif;font-weight:600;">Recommended Fix</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">3, 98</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Price</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Non-numeric price values (abd)</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">High</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Validate and standardize price formats; implement data type constraints</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;">12</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Price</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Non-numeric price value (four hundred)</td><td style="padding:8px 12px;border:1px solid #dde1e7;">High</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Replace text-based numbers with numeric values; audit similar entries</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">19, 36</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Quantity</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Negative quantity values (-2, -5)</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">High</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Enforce non-negative quantity constraints; review business logic for returns</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;">35, 38, 82, 83, 84, 86, 95, 100</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Category</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Missing or invalid category values</td><td style="padding:8px 12px;border:1px solid #dde1e7;">High</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Implement dropdown menus or validation rules; standardize category taxonomy</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">16, 94</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Order_Date</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Invalid date formats (Jan 5 2023, abc)</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Medium</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Standardize date formats to ISO 8601; implement date validation</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;">94</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Quantity</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Non-numeric quantity value (4a)</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Medium</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Enforce numeric-only quantity fields; clean text-based entries</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">39</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Price</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Negative price value (-100)</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Medium</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Investigate pricing logic; ensure prices cannot be negative</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;">17, 44, 53, 87, 102</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Total</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Mismatch between calculated and recorded totals</td><td style="padding:8px 12px;border:1px solid #dde1e7;">High</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Implement automated total validation; flag discrepancies for review</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">77, 102</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Order_ID</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Duplicate order ID (ORD-56651)</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Critical</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Implement unique constraint on Order_ID; deduplicate records</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;">44, 103</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Order_ID</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Duplicate order ID (ORD-69018)</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Critical</td><td style="padding:8px 12px;border:1px solid #dde1e7;">Implement unique constraint on Order_ID; deduplicate records</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">48, 104</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Order_ID</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Duplicate order ID (ORD-32755)</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Critical</td><td style="padding:8px 12px;border:1px solid #dde1e7;background:#f9fbff;">Implement unique constraint on Order_ID; deduplicate records</td></tr>
+      </tbody>
+    </table>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Data Cleaning Recommendations</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">1. Standardize all price fields to numeric format, replacing text-based entries with valid numbers and enforcing data type constraints.</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">2. Replace negative quantity values with absolute values and investigate the root cause of negative entries in the system.</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">3. Implement mandatory dropdown menus for category selection to eliminate missing or invalid category values.</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">4. Standardize date formats to ISO 8601 (YYYY-MM-DD) and implement validation to prevent invalid date entries.</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">5. Enforce numeric-only input for quantity fields and clean existing text-based entries.</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">6. Implement automated validation for calculated totals, flagging discrepancies for manual review.</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">7. Add unique constraints to the Order_ID field and deduplicate the three identified duplicate pairs (ORD-56651, ORD-69018, ORD-32755).</p>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0 6px 20px;">8. Review the business logic for negative price values and implement safeguards to prevent such entries.</p>
+
+    <h1 style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;border-bottom:2px solid #4a90d9;padding-bottom:8px;margin-top:36px;">EXPLORATORY DATA ANALYSIS</h1>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Dataset Overview</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The sales dataset contains 103 total records, with 89 valid records after excluding problematic entries. This represents a data quality completeness rate of approximately 86.4% (derived: 89/103).</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Missing Data Summary</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Missing or invalid values affect 14 records in total, with 6 records missing quantity data, 9 records missing price data, and 14 records missing total data. The most frequently missing field is the total amount, indicating potential calculation or recording issues.</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Descriptive Statistics</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Total revenue across all valid records is $109,732.47, with an average order value of $1,232.95. The dataset includes 23 shipped orders, 27 processing orders, 11 delivered orders, 15 cancelled orders, and 27 returned orders.</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Category Breakdown</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The dataset spans six categories: Home ($24,429.71 revenue, 20 orders), Electronic ($128.99 revenue, 21 orders), Sport ($17,297.70 revenue, 17 orders), Book ($37,604.71 revenue, 22 orders), Clothing ($23,203.03 revenue, 15 orders), and Unknown ($7,068.33 revenue, 8 orders). Book category leads in both revenue and order frequency, while Electronic category shows minimal revenue despite high order volume.</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Revenue Analysis</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Total revenue of $109,732.47 is distributed unevenly across categories, with Book category contributing 34.3% of total revenue (derived) despite representing only 24.7% of orders (derived). The Unknown category accounts for 6.4% of revenue (derived) with 9.0% of orders (derived), suggesting potential misclassification issues.</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Payment Analysis</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Payment method distribution shows Cash on Delivery leading with 33 orders (37.1%, derived), followed by PayPal (24 orders, 27.0%), Bank Transfer (23 orders, 25.8%), and Credit Card (23 orders, 25.8%).</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Order Status Analysis</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Order status distribution reveals significant processing backlog with 27 processing orders (30.3%) and 27 returned orders (30.3%), alongside 23 shipped orders (25.8%) and 11 delivered orders (12.4%).</p>
+
+    <h2 style="font-family:Georgia,serif;font-size:17px;color:#2c3e50;margin-top:24px;margin-bottom:6px;">Outliers</h2>
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The Electronic category shows an extreme revenue anomaly with only $128.99 total revenue across 21 orders, indicating either data entry errors or extremely low average order values in this category.</p>
+
+    <h1 style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;border-bottom:2px solid #4a90d9;padding-bottom:8px;margin-top:36px;">BUSINESS INSIGHTS</h1>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The Book category generates $37,604.71 in revenue, representing 34.3% of total sales while accounting for only 24.7% of orders. This disproportionate performance suggests strong market demand for books and indicates an opportunity to expand inventory or marketing efforts in this category.</p>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Cash on Delivery accounts for 37.1% of all orders and correlates with a 30.3% return rate. This pattern suggests potential fraudulent orders or buyer's remorse associated with cash transactions, indicating a need to either restrict this payment method or implement stricter verification processes.</p>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">With 30.3% of orders in processing status and only 12.4% delivered, the order fulfillment pipeline shows significant bottlenecks. Addressing these processing delays could improve customer satisfaction and reduce the high return rate by ensuring timely order completion.</p>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Three duplicate order IDs exist in the dataset, affecting 6 rows (ORD-56651, ORD-69018, ORD-32755). These duplicates inflate order counts and distort performance metrics, requiring deduplication to maintain accurate sales tracking.</p>
+
+    <h1 style="font-family:Georgia,serif;font-size:22px;color:#1a1a2e;border-bottom:2px solid #4a90d9;padding-bottom:8px;margin-top:36px;">EXECUTIVE SUMMARY</h1>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The sales dataset contains significant data quality issues affecting 14 records (13.6%), including three duplicate order ID pairs and 14 records with missing totals, which directly impact revenue accuracy and order tracking.</p>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">Total revenue of $109,732.47 shows strong performance, but Cash on Delivery payments correlate with a 30.3% return rate, and the Electronic category's minimal revenue of $128.99 across 21 orders requires immediate investigation as either a data quality issue or a strategic problem.</p>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The Book category emerges as the clear revenue leader, generating $37,604.71 while representing only 24.7% of orders. Addressing the 30.3% processing backlog and standardizing category assignments could unlock additional revenue opportunities.</p>
+
+    <p style="font-family:Arial,sans-serif;font-size:14px;color:#2c3e50;line-height:1.7;margin:6px 0;">The primary recommendation is to implement immediate data quality improvements: deduplicate the three order ID pairs, standardize all price and quantity formats, and implement automated validation for order totals.</p>
+
+  </div>
+
+  <div style="margin-top:48px;padding-top:20px;border-top:1px solid #dde1e7;text-align:center;">
+    <p style="font-size:12px;color:#95a5a6;">
+      AI Sales Data Analyst &nbsp;|&nbsp; Sample Output &nbsp;|&nbsp; Generated via automated pipeline
+    </p>
+  </div>
+
+</body>
+</html>
